@@ -28,20 +28,27 @@ Storing whole transcripts and retrieving them later gets noisy and stale fast. T
 
 ```mermaid
 flowchart LR
-    UI["React + TS<br/>chat · voice · memory panel"] -->|/api/chat| R
-    subgraph LangGraph turn
-      R[route<br/><i>Haiku: needs memory? may contain facts?</i>] -->|needs memory| RT[retrieve<br/><i>LangChain retriever over pgvector</i>]
-      R -->|no| RS
-      RT --> RS[respond<br/><i>Opus 5.5 + MCP tools</i>]
-      RS -->|facts to save| M[remember<br/><i>extract → reconcile</i>]
-      RS -->|no| E((end))
-      M --> E
+    UI["React + TS UI<br/>chat, voice, memory panel"] -->|"POST /api/chat"| R
+
+    subgraph TURN["LangGraph turn"]
+        R["route<br/>Haiku: needs memory? new facts?"]
+        RT["retrieve<br/>LangChain retriever over pgvector"]
+        RS["respond<br/>Opus 5.5 + MCP tools"]
+        M["remember<br/>extract, then reconcile"]
+        DONE(["reply sent"])
+        R -->|"needs memory"| RT
+        R -->|"no"| RS
+        RT --> RS
+        RS -->|"facts to save"| M
+        RS -->|"nothing to save"| DONE
+        M --> DONE
     end
-    RS <-->|MCP| T[(tasks MCP server)]
-    RT --> PG[(Postgres + pgvector<br/>memories · memory_events · tasks)]
+
+    RS <-->|"MCP"| T[("tasks MCP server")]
+    RT --> PG[("Postgres + pgvector<br/>memories, memory_events, tasks")]
     M --> PG
     T --> PG
-    R & RT & RS & M -. spans .-> LF[Langfuse]
+    TURN -.->|"traces"| LF["Langfuse"]
 ```
 
 | Layer | Implementation |
