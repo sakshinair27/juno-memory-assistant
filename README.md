@@ -2,7 +2,7 @@
 
 **Juno** is a voice-and-chat personal assistant that remembers you across sessions — preferences, ongoing projects, facts you've mentioned — and uses them to personalize answers. The memory system is built from scratch: **extraction → pgvector storage → conflict resolution → relevance-filtered retrieval**, orchestrated by a LangGraph agent, with one MCP tool for "remind me to…".
 
-> **Headline metric — conflict-resolution accuracy: 90% on 10 held-out contradiction cases** (100% on the 22-case dev set) vs **0%** for a naive append-only memory on the same dev cases. Contradictions are updated in place with no stale or duplicate facts left. Also: 100% no wrong merges, 100% no duplicates, 100% extraction accuracy (21 cases). [Details ↓](#results)
+> **Headline metric — conflict-resolution accuracy: 90% on 10 held-out contradiction cases** (95–100% across two runs on the 22-case dev set) vs **0–5%** for a naive append-only memory on the same dev cases. Contradictions are updated in place with no stale or duplicate facts left. Also: 100% no wrong merges, 100% no duplicates, 100% extraction accuracy (21 cases). [Details ↓](#results)
 
 ## Why it's not just "RAG over chat logs"
 
@@ -93,7 +93,7 @@ The first backend start downloads the embedding model (~70 MB).
 | Whisper speech-to-text | `pip install faster-whisper` (model `base.en` downloads on first use). Without it, the mic uses the browser's speech recognition. |
 | ElevenLabs voice | Set `ELEVENLABS_API_KEY` (and optionally `ELEVENLABS_VOICE_ID`). Without it, replies are spoken with the browser's voice. |
 | Langfuse tracing | Set `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`. |
-| Standalone MCP server | `python -m mcp_server.tasks_server --http` then set `MCP_SERVER_URL=http://127.0.0.1:8765/mcp`. Or point Claude Desktop at it over stdio: `python -m mcp_server.tasks_server`. By default the backend connects in-process (still over the MCP protocol). |
+| Standalone MCP server | `python -m mcp_server.tasks_server --http` then set `MCP_SERVER_URL=http://127.0.0.1:8765/mcp`. Or connect any MCP client over stdio: `python -m mcp_server.tasks_server`. By default the backend connects in-process (still over the MCP protocol). |
 
 ## Demo script (2 minutes)
 
@@ -116,21 +116,23 @@ python -m evals.run_evals --suite conflict --cases conflict_heldout.json   # hel
 
 ### Results
 
-| Suite | Append-only baseline | v1 | v2 (current) |
+| Suite | Append-only baseline (2 runs) | v1 | v2 (current, 2 runs) |
 |---|---|---|---|
-| **Contradictions, dev set (22)** — headline | 0/22 (0%) | 20/22 (90.9%) | **22/22 (100%)** |
-| **Contradictions, held-out (10)** | — | — | **9/10 (90%)** |
-| Additions, no wrong merge (6) | 6/6 | 6/6 | 6/6 |
-| Restatements, no duplicate (4) | 0/4 | 4/4 | 4/4 |
+| **Contradictions, dev set (22)** | 0/22, 1/22 | 20/22 (90.9%) | **22/22, 21/22** (100%, 95.5%) |
+| **Contradictions, held-out (10)** — headline | — | — | **9/10 (90%)** |
+| Additions, no wrong merge (6) | 6/6, 6/6 | 6/6 | 6/6, 6/6 |
+| Restatements, no duplicate (4) | 0/4, 0/4 | 4/4 | 4/4, 4/4 |
 | Extraction: noise ignored (10) / facts captured (10) / forget (1) | — | 21/21 | — |
 
 **What changed v1 → v2.** Both v1 failures had one root cause: the conflict judge only saw the *extracted* fact ("User does evening workouts"), not the user's words ("I **switched** my workouts…", "my allergy test was **wrong**"). Without that signal it reasonably added a second fact. v2 passes the source message to the judge as evidence. Because that fix came from studying failures on the dev set, I then wrote 10 **new** held-out cases ([`conflict_heldout.json`](backend/evals/conflict_heldout.json)) and ran them once, untuned: 9/10.
 
 **Known failure (held-out).** "Sorry, I mixed that up — my manager is Danielle, Daniel is on another team" extracted *nothing*, so the stale "manager is Daniel" survived. That's an **extraction** miss (the message is mostly about other people), not a conflict-resolution one. It's left unfixed on purpose so the held-out number stays honest.
 
-**Baseline.** Append-only memory never resolves a contradiction and duplicates every restatement — e.g. after "Boston → Denver → Portland" it holds all three cities as current.
+**Run-to-run variance.** LLM pipelines aren't deterministic, so the dev set was run twice on v2. The one miss in the second run (`implicit-relationship`) correctly removed "User is single" but stored two facts mentioning the boyfriend, which the grader counted as a duplicate.
 
-All numbers: Claude Haiku 4.5 for extraction/judging, graded by Claude Sonnet 5.5, run 2026-10-01. Full per-case memory dumps are in `backend/evals/results/`.
+**Baseline.** Append-only memory essentially never resolves a contradiction and duplicates every restatement — e.g. after "Boston → Denver → Portland" it holds all three cities as current. Its single "pass" was a fluke: the first message happened not to be extracted, so there was nothing stale to leave behind.
+
+All numbers: Claude Haiku 4.5 for extraction/judging, graded by Claude Sonnet 5.5, run 2026-10-01. Per-case memory dumps for the current version are in `backend/evals/results/`.
 
 - **Conflict suite** ([`conflict_cases.json`](backend/evals/conflict_cases.json)) — 32 multi-session dev cases (+10 held-out) run through the real extraction + reconciliation pipeline:
   - 22 **contradictions** (moved city, changed job, corrected name, "I sold my car", implicit ones like "I'm single" → "my boyfriend Sam…", a three-hop Boston → Denver → Portland) — **this pass rate is the headline metric**

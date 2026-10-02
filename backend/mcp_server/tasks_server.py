@@ -1,7 +1,7 @@
 """A tiny MCP server: a tasks / reminders store backed by the same Postgres.
 
 Run standalone:
-    python -m mcp_server.tasks_server            # stdio (e.g. for Claude Desktop)
+    python -m mcp_server.tasks_server            # stdio (for any MCP client)
     python -m mcp_server.tasks_server --http     # streamable HTTP on :8765/mcp
 
 The assistant backend connects to it in-process by default (still speaking

@@ -66,8 +66,8 @@
 
   {"id": "employer-change", "type": "contradiction",
    "sessions": [["I'm a software engineer at Google."]],
-   "final": "I left Google and joined Anthropic, still as a software engineer.",
-   "expected_current": "User is a software engineer at Anthropic", "stale": "User works at Google"},
+   "final": "I left Google and joined Microsoft, still as a software engineer.",
+   "expected_current": "User is a software engineer at Microsoft", "stale": "User works at Google"},
 
   {"id": "team-allegiance", "type": "contradiction",
    "sessions": [["I'm a huge Lakers fan."]],
