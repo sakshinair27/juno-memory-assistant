@@ -29,7 +29,9 @@ function save(key: string, value: unknown) {
 
 export default function App() {
   const [sessionId, setSessionId] = useState<string>(() => load("sessionId", newSessionId()));
-  const [messages, setMessages] = useState<Msg[]>(() => load(`msgs:${load("sessionId", "")}`, []));
+  // Restore the conversation after a refresh, minus any error bubbles (they're only meaningful once).
+  const [messages, setMessages] = useState<Msg[]>(() =>
+    load<Msg[]>(`msgs:${load("sessionId", "")}`, []).filter((m) => !m.error));
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -60,7 +62,7 @@ export default function App() {
   // Effects use block bodies: some browsers return a Promise from scrollIntoView,
   // and React treats any non-function return value as a (broken) cleanup.
   useEffect(() => { save("sessionId", sessionId); }, [sessionId]);
-  useEffect(() => { save(`msgs:${sessionId}`, messages); }, [messages, sessionId]);
+  useEffect(() => { save(`msgs:${sessionId}`, messages.filter((m) => !m.error)); }, [messages, sessionId]);
   useEffect(() => { save("voiceOut", voiceOut); }, [voiceOut]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, busy]);
 
