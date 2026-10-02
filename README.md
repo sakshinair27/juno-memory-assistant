@@ -2,7 +2,7 @@
 
 **Juno** is a voice-and-chat personal assistant that remembers you across sessions — preferences, ongoing projects, facts you've mentioned — and uses them to personalize answers. The memory system is built from scratch: **extraction → pgvector storage → conflict resolution → relevance-filtered retrieval**, orchestrated by a LangGraph agent, with one MCP tool for "remind me to…".
 
-> **Headline metric — conflict-resolution accuracy: 90% on 10 held-out contradiction cases** (95–100% across two runs on the 22-case dev set) vs **0–5%** for a naive append-only memory on the same dev cases. Contradictions are updated in place with no stale or duplicate facts left. Also: 100% no wrong merges, 100% no duplicates, 100% extraction accuracy (21 cases). [Details ↓](#results)
+> **Headline metric — conflict-resolution accuracy: 90% (9/10) on held-out contradiction cases, vs 0% (0/10) for a naive append-only memory on the same cases.** The held-out cases were written after all tuning and run once, untouched. When it resolves a contradiction, it rewrites the old fact in place instead of storing both. [Details and the one failure ↓](#results)
 
 ## Why it's not just "RAG over chat logs"
 
@@ -119,17 +119,27 @@ cd backend
 python -m evals.run_evals                         # conflict + extraction suites
 python -m evals.run_evals --suite conflict --baseline   # same cases, append-only memory
 python -m evals.run_evals --suite conflict --cases conflict_heldout.json   # held-out set
+python -m evals.run_evals --suite conflict --cases conflict_heldout.json --baseline
 ```
 
 ### Results
 
+**Headline — held-out set (10 cases, written after tuning, run once):**
+
+| | Append-only baseline | Juno |
+|---|---|---|
+| **Contradictions resolved correctly** | 0/10 (0%) | **9/10 (90%)** |
+
+**Supporting numbers — dev set (used during development, so optimistic by construction):**
+
 | Suite | Append-only baseline (2 runs) | v1 | v2 (current, 2 runs) |
 |---|---|---|---|
-| **Contradictions, dev set (22)** | 0/22, 1/22 | 20/22 (90.9%) | **22/22, 21/22** (100%, 95.5%) |
-| **Contradictions, held-out (10)** — headline | — | — | **9/10 (90%)** |
+| Contradictions (22) | 0/22, 1/22 | 20/22 | 22/22, 21/22 |
 | Additions, no wrong merge (6) | 6/6, 6/6 | 6/6 | 6/6, 6/6 |
 | Restatements, no duplicate (4) | 0/4, 0/4 | 4/4 | 4/4, 4/4 |
 | Extraction: noise ignored (10) / facts captured (10) / forget (1) | — | 21/21 | — |
+
+Quote the held-out number. The dev-set numbers show the system doesn't over-merge or duplicate, but the v1 → v2 fix was found by studying dev-set failures, so they overstate real-world accuracy.
 
 **What changed v1 → v2.** Both v1 failures had one root cause: the conflict judge only saw the *extracted* fact ("User does evening workouts"), not the user's words ("I **switched** my workouts…", "my allergy test was **wrong**"). Without that signal it reasonably added a second fact. v2 passes the source message to the judge as evidence. Because that fix came from studying failures on the dev set, I then wrote 10 **new** held-out cases ([`conflict_heldout.json`](backend/evals/conflict_heldout.json)) and ran them once, untuned: 9/10.
 
