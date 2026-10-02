@@ -1,0 +1,18 @@
+anthropic>=1.11,<2
+langchain-core>=1.6,<2
+langgraph>=1.2,<2
+psycopg[binary]>=3.3,<4
+psycopg-pool>=3.2
+pgvector>=0.5
+fastembed>=0.8
+fastapi>=0.140
+uvicorn[standard]>=0.50
+python-multipart>=0.0.20
+python-dotenv>=1.0
+pydantic>=2.10
+httpx>=0.28
+mcp>=2.2,<3
+langfuse>=4.16,<5
+pytest>=8
+# optional: local Whisper speech-to-text
+# faster-whisper>=1.1

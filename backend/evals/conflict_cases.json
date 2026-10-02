@@ -1,0 +1,167 @@
+[
+  {"id": "city-move", "type": "contradiction",
+   "sessions": [["I live in Seattle."]],
+   "final": "Actually I just moved to Austin last month.",
+   "expected_current": "User lives in Austin", "stale": "User lives in Seattle"},
+
+  {"id": "job-change", "type": "contradiction",
+   "sessions": [["I work as a nurse at St. Mary's hospital."]],
+   "final": "I quit nursing — I'm a UX designer at a startup now.",
+   "expected_current": "User is a UX designer at a startup", "stale": "User is a nurse at St. Mary's"},
+
+  {"id": "diet-vegan", "type": "contradiction",
+   "sessions": [["Steak is my absolute favorite food."]],
+   "final": "I went vegan last month, so no more meat for me.",
+   "expected_current": "User is vegan", "stale": "User's favorite food is steak / user eats meat"},
+
+  {"id": "dog-name-correction", "type": "contradiction",
+   "sessions": [["My dog's name is Biscuit."]],
+   "final": "I misspoke earlier — my dog's name is Peanut, not Biscuit.",
+   "expected_current": "User's dog is named Peanut", "stale": "User's dog is named Biscuit"},
+
+  {"id": "girlfriend-to-wife", "type": "contradiction",
+   "sessions": [["My girlfriend Maya and I live together."]],
+   "final": "Maya and I got married in June, so she's my wife now!",
+   "expected_current": "User is married to Maya", "stale": "Maya is the user's girlfriend"},
+
+  {"id": "style-detailed-to-concise", "type": "contradiction",
+   "sessions": [["I like really detailed, thorough explanations when I ask you things."]],
+   "final": "Please keep answers short from now on — I prefer concise replies.",
+   "expected_current": "User prefers concise replies", "stale": "User prefers detailed, thorough explanations"},
+
+  {"id": "project-stack", "type": "contradiction",
+   "sessions": [["I'm building a habit-tracker app in Flutter."]],
+   "final": "I rewrote my habit tracker in React Native and dropped Flutter entirely.",
+   "expected_current": "User's habit tracker app is built in React Native", "stale": "User's habit tracker is built in Flutter"},
+
+  {"id": "city-three-hops", "type": "contradiction",
+   "sessions": [["I live in Boston."], ["We moved to Denver for my partner's job."]],
+   "final": "And now we've settled in Portland, Oregon for good.",
+   "expected_current": "User lives in Portland, Oregon", "stale": "User lives in Boston or in Denver"},
+
+  {"id": "coffee-to-tea", "type": "contradiction",
+   "sessions": [["I drink like four coffees a day."]],
+   "final": "I've switched to decaf tea only, no more coffee for me.",
+   "expected_current": "User drinks decaf tea and no coffee", "stale": "User drinks about four coffees a day"},
+
+  {"id": "workout-time", "type": "contradiction",
+   "sessions": [["I go to the gym every morning at 6am."]],
+   "final": "I switched my workouts to evenings after work.",
+   "expected_current": "User works out in the evenings after work", "stale": "User goes to the gym at 6am every morning"},
+
+  {"id": "preferred-name", "type": "contradiction",
+   "sessions": [["Please call me Alexander."]],
+   "final": "Actually, just call me Alex.",
+   "expected_current": "User wants to be called Alex", "stale": "User wants to be called Alexander"},
+
+  {"id": "language-learning", "type": "contradiction",
+   "sessions": [["I'm learning Spanish on Duolingo."]],
+   "final": "I gave up on Spanish and started learning Japanese instead.",
+   "expected_current": "User is learning Japanese", "stale": "User is learning Spanish"},
+
+  {"id": "car-sold", "type": "contradiction",
+   "sessions": [["I drive a 2015 Honda Civic."]],
+   "final": "I sold my car — I just bike everywhere now.",
+   "expected_current": "User has no car and bikes everywhere", "stale": "User drives a 2015 Honda Civic"},
+
+  {"id": "employer-change", "type": "contradiction",
+   "sessions": [["I'm a software engineer at Google."]],
+   "final": "I left Google and joined Anthropic, still as a software engineer.",
+   "expected_current": "User is a software engineer at Anthropic", "stale": "User works at Google"},
+
+  {"id": "team-allegiance", "type": "contradiction",
+   "sessions": [["I'm a huge Lakers fan."]],
+   "final": "I've switched allegiance — I'm a Warriors fan now.",
+   "expected_current": "User is a Warriors fan", "stale": "User is a Lakers fan"},
+
+  {"id": "allergy-correction", "type": "contradiction",
+   "sessions": [["I'm allergic to peanuts."]],
+   "final": "Turns out my allergy test was wrong — I'm not allergic to peanuts after all, it's shellfish.",
+   "expected_current": "User is allergic to shellfish (not peanuts)", "stale": "User is allergic to peanuts"},
+
+  {"id": "kids-count", "type": "contradiction",
+   "sessions": [["I have two kids."]],
+   "final": "We just had our third baby!",
+   "expected_current": "User has three kids", "stale": "User has two kids"},
+
+  {"id": "thesis-topic", "type": "contradiction",
+   "sessions": [["My master's thesis is on graph neural networks."]],
+   "final": "I changed my thesis topic to retrieval-augmented generation.",
+   "expected_current": "User's thesis is on retrieval-augmented generation", "stale": "User's thesis is on graph neural networks"},
+
+  {"id": "timezone", "type": "contradiction",
+   "sessions": [["I'm on Pacific time."]],
+   "final": "I'm based in London now, so I'm on UK time.",
+   "expected_current": "User is in London / on UK time", "stale": "User is on Pacific time"},
+
+  {"id": "editor", "type": "contradiction",
+   "sessions": [["I use VS Code for everything."]],
+   "final": "I've fully switched to Neovim, haven't opened VS Code in weeks.",
+   "expected_current": "User uses Neovim", "stale": "User uses VS Code for everything"},
+
+  {"id": "implicit-relationship", "type": "contradiction",
+   "sessions": [["I'm single, by the way."]],
+   "final": "My boyfriend Sam keeps telling me I should learn to cook.",
+   "expected_current": "User has a boyfriend named Sam", "stale": "User is single"},
+
+  {"id": "pet-passed", "type": "contradiction",
+   "sessions": [["I have a cat named Mochi."]],
+   "final": "Mochi passed away last week, so I don't have any pets now.",
+   "expected_current": null, "stale": "User has a cat named Mochi (as a current pet)"},
+
+  {"id": "add-second-pet", "type": "addition",
+   "sessions": [["I have a dog named Max."]],
+   "final": "I also adopted a cat named Luna!",
+   "expected_current": "User has a cat named Luna", "stale": null,
+   "must_keep": ["User has a dog named Max"]},
+
+  {"id": "add-language", "type": "addition",
+   "sessions": [["I speak English and Hindi."]],
+   "final": "I'm also learning French these days.",
+   "expected_current": "User is learning French", "stale": null,
+   "must_keep": ["User speaks English and Hindi"]},
+
+  {"id": "add-second-project", "type": "addition",
+   "sessions": [["I'm building a habit tracker app."]],
+   "final": "On the side I'm also writing a fantasy novel.",
+   "expected_current": "User is writing a fantasy novel", "stale": null,
+   "must_keep": ["User is building a habit tracker app"]},
+
+  {"id": "sister-vs-self-city", "type": "addition",
+   "sessions": [["My sister lives in Chicago."]],
+   "final": "I live in Miami myself.",
+   "expected_current": "User lives in Miami", "stale": null,
+   "must_keep": ["User's sister lives in Chicago"]},
+
+  {"id": "add-hobby", "type": "addition",
+   "sessions": [["I love hiking."]],
+   "final": "I'm also really into rock climbing.",
+   "expected_current": "User is into rock climbing", "stale": null,
+   "must_keep": ["User loves hiking"]},
+
+  {"id": "add-work-detail", "type": "addition",
+   "sessions": [["I work at Stripe as a data scientist."]],
+   "final": "My manager at Stripe is named Priya.",
+   "expected_current": "User's manager at Stripe is Priya", "stale": null,
+   "must_keep": ["User is a data scientist at Stripe"]},
+
+  {"id": "restate-vegetarian", "type": "restatement",
+   "sessions": [["I'm vegetarian."]],
+   "final": "As a vegetarian, what should I cook tonight?",
+   "expected_current": "User is vegetarian", "stale": null},
+
+  {"id": "restate-city", "type": "restatement",
+   "sessions": [["I live in Austin, Texas."]],
+   "final": "Being an Austin resident, the summer heat really gets to me.",
+   "expected_current": "User lives in Austin, Texas", "stale": null},
+
+  {"id": "restate-style", "type": "restatement",
+   "sessions": [["Please keep your answers short."]],
+   "final": "Remember, I like brief answers.",
+   "expected_current": "User prefers short answers", "stale": null},
+
+  {"id": "restate-marathon", "type": "restatement",
+   "sessions": [["I'm training for the Chicago marathon in October."]],
+   "final": "Marathon training is going well — the Chicago race is in October.",
+   "expected_current": "User is training for the Chicago marathon in October", "stale": null}
+]

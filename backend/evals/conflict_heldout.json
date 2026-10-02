@@ -1,0 +1,51 @@
+[
+  {"id": "ho-commute", "type": "contradiction",
+   "sessions": [["I take the subway to work every day."]],
+   "final": "These days I work fully remote, so no more commuting.",
+   "expected_current": "User works fully remote", "stale": "User takes the subway to work every day"},
+
+  {"id": "ho-phone", "type": "contradiction",
+   "sessions": [["I'm an iPhone person through and through."]],
+   "final": "Plot twist: I got a Pixel last week and I'm not going back.",
+   "expected_current": "User uses a Google Pixel phone", "stale": "User uses an iPhone"},
+
+  {"id": "ho-sleep", "type": "contradiction",
+   "sessions": [["I'm a total night owl, usually up until 2am."]],
+   "final": "Since the baby arrived I'm asleep by 9:30 every night.",
+   "expected_current": "User goes to sleep by 9:30pm", "stale": "User stays up until 2am / is a night owl"},
+
+  {"id": "ho-degree", "type": "contradiction",
+   "sessions": [["I'm studying mechanical engineering."]],
+   "final": "I officially switched my major to computer science this semester.",
+   "expected_current": "User is majoring in computer science", "stale": "User studies mechanical engineering"},
+
+  {"id": "ho-roommate", "type": "contradiction",
+   "sessions": [["I live with two roommates."]],
+   "final": "Both my roommates moved out, so I have the apartment to myself now.",
+   "expected_current": "User lives alone", "stale": "User lives with two roommates"},
+
+  {"id": "ho-favorite-food", "type": "contradiction",
+   "sessions": [["Sushi is my favorite food."]],
+   "final": "Honestly ramen has overtaken sushi as my favorite.",
+   "expected_current": "User's favorite food is ramen", "stale": "User's favorite food is sushi"},
+
+  {"id": "ho-salary-role", "type": "contradiction",
+   "sessions": [["I'm a junior data analyst."]],
+   "final": "I got promoted to senior analyst yesterday!",
+   "expected_current": "User is a senior analyst", "stale": "User is a junior data analyst"},
+
+  {"id": "ho-age-kid", "type": "contradiction",
+   "sessions": [["My daughter is in kindergarten."]],
+   "final": "My daughter just started first grade.",
+   "expected_current": "User's daughter is in first grade", "stale": "User's daughter is in kindergarten"},
+
+  {"id": "ho-wrong-name", "type": "contradiction",
+   "sessions": [["My manager's name is Daniel."]],
+   "final": "Sorry, I mixed that up — my manager is Danielle, Daniel is on another team.",
+   "expected_current": "User's manager is Danielle", "stale": "User's manager is Daniel"},
+
+  {"id": "ho-quit-smoking", "type": "contradiction",
+   "sessions": [["I smoke about half a pack a day."]],
+   "final": "Six months smoke-free as of today!",
+   "expected_current": "User has quit smoking", "stale": "User smokes about half a pack a day"}
+]

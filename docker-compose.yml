@@ -1,0 +1,21 @@
+# Fixed project name so renaming the folder keeps the same database volume.
+name: memoryassistant
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: memory
+      POSTGRES_PASSWORD: memory
+      POSTGRES_DB: memory
+    ports:
+      - "5434:5432"   # 5434 on the host so it doesn't clash with a local Postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memory"]
+      interval: 2s
+      retries: 30
+
+volumes:
+  pgdata:
