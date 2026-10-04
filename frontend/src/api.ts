@@ -49,6 +49,8 @@ export interface ChatResponse {
   route: { needs_memory: boolean; search_queries: string[]; may_contain_facts: boolean } | null;
   used_memories: UsedMemory[];
   memory_ops: MemoryOp[];
+  memory_pending: boolean;
+  turn_id: string | null;
   tool_calls: ToolCall[];
 }
 
@@ -93,6 +95,9 @@ export const api = {
     fd.append("audio", blob, "speech.webm");
     return fetch("/api/transcribe", { method: "POST", body: fd }).then((r) => json<{ text: string }>(r));
   },
+  turnMemory: (turnId: string) =>
+    fetch(`/api/turns/${turnId}`).then((r) =>
+      json<{ status: "pending" | "done" | "error"; memory_ops: MemoryOp[] }>(r)),
   tts: (text: string) =>
     fetch("/api/tts", {
       method: "POST",

@@ -9,11 +9,21 @@ route    - cheap model decides: does this turn need contextual memory, and might
 retrieve - LangChain retriever pulls only the facts relevant to this question.
 respond  - main model answers with the memories in context; it can call the
            MCP tasks tools ("remind me to...").
-remember - extraction + conflict resolution on the user's message.
+remember - extraction + conflict resolution on the user's message. With
+           background_memory=True (what the API uses) this node only queues the
+           work: the reply goes back immediately and the facts are written on a
+           single background worker, so writes stay in message order. Poll
+           `memory_result(turn_id)` for the outcome.
 """
 from __future__ import annotations
 
+import contextvars
+import logging
 import re
+import threading
+import uuid
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Any, TypedDict
 
@@ -27,8 +37,10 @@ from ..mcp_client import TaskTools
 from ..memory.reconcile import Reconciler, remember
 from ..memory.retriever import MemoryRetriever
 from ..memory.store import MemoryStore
+from .. import tracing
 from ..tracing import annotate, annotate_generation, traced
 
+log = logging.getLogger(__name__)
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_TOOL_ROUNDS = 5
 _TRIVIAL = re.compile(r"^\s*(hi|hey|hello|thanks|thank you|ok(ay)?|cool|nice|great|yes|no|yep|nope|bye|good (morning|night))[\s!.?]*$", re.I)
@@ -45,6 +57,9 @@ class TurnState(TypedDict, total=False):
     tool_calls: list[dict]
     candidates: list[dict]
     memory_ops: list[dict]
+    background_memory: bool
+    turn_id: str
+    memory_pending: bool
 
 
 class RouteDecision(BaseModel):
@@ -104,6 +119,11 @@ class MemoryAgent:
         self.reconciler = Reconciler(store=store, embedder=embedder)
         self.tools = tools
         self.graph = self._build()
+        # One worker: memory writes run strictly in message order, so a later
+        # message's conflict check always sees the earlier message's writes.
+        self._memory_worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="memory")
+        self._memory_results: OrderedDict[str, dict] = OrderedDict()
+        self._lock = threading.Lock()
 
     # ---------------- nodes ----------------
     @traced("route", as_type="chain", capture_output=False)
@@ -185,12 +205,45 @@ class MemoryAgent:
                             metadata={"stop_reason": resp.stop_reason, "tools": [t["name"] for t in tools]})
         return resp
 
-    @traced("remember", as_type="chain")
     def remember(self, s: TurnState) -> dict:
-        annotate(input=s["user_message"])
-        context = list(s.get("history", [])[-4:])
-        candidates, ops = remember(s["user_message"], context, self.reconciler, s.get("session_id"))
-        return {"candidates": [c.model_dump() for c in candidates], "memory_ops": [o.to_dict() for o in ops]}
+        args = (s["user_message"], list(s.get("history", [])[-4:]), s.get("session_id"))
+        if not s.get("background_memory"):
+            return self._remember_now(*args)
+        turn_id = s["turn_id"]
+        self._set_result(turn_id, {"status": "pending", "memory_ops": []})
+        ctx = contextvars.copy_context()  # keeps the background spans inside this turn's trace
+        self._memory_worker.submit(ctx.run, self._remember_background, turn_id, *args)
+        return {"memory_pending": True}
+
+    @traced("remember", as_type="chain", capture_output=False)
+    def _remember_now(self, user_message: str, context: list[dict], session_id: str | None) -> dict:
+        candidates, ops = remember(user_message, context, self.reconciler, session_id)
+        out = {"candidates": [c.model_dump() for c in candidates], "memory_ops": [o.to_dict() for o in ops]}
+        annotate(input=user_message, output=out["memory_ops"])
+        return out
+
+    def _remember_background(self, turn_id: str, *args) -> None:
+        try:
+            out = self._remember_now(*args)
+            self._set_result(turn_id, {"status": "done", "memory_ops": out["memory_ops"]})
+        except Exception as e:
+            log.exception("background memory write failed")
+            self._set_result(turn_id, {"status": "error", "memory_ops": [], "error": str(e)})
+        finally:
+            tracing.flush()
+
+    def _set_result(self, turn_id: str, result: dict) -> None:
+        with self._lock:
+            self._memory_results[turn_id] = result
+            while len(self._memory_results) > 500:
+                self._memory_results.popitem(last=False)
+
+    def shutdown(self) -> None:
+        self._memory_worker.shutdown(wait=True)
+
+    def memory_result(self, turn_id: str) -> dict | None:
+        with self._lock:
+            return self._memory_results.get(turn_id)
 
     # ---------------- wiring ----------------
     def _build(self):
@@ -209,9 +262,13 @@ class MemoryAgent:
         return g.compile()
 
     @traced("chat_turn", as_type="agent", capture_output=False)
-    def run(self, session_id: str, user_message: str, history: list[dict] | None = None) -> TurnState:
+    def run(self, session_id: str, user_message: str, history: list[dict] | None = None,
+            background_memory: bool = False) -> TurnState:
         out = self.graph.invoke({"session_id": session_id, "user_message": user_message, "history": history or [],
-                                 "retrieved": [], "pinned": [], "tool_calls": [], "candidates": [], "memory_ops": []})
+                                 "retrieved": [], "pinned": [], "tool_calls": [], "candidates": [], "memory_ops": [],
+                                 "background_memory": background_memory, "turn_id": uuid.uuid4().hex,
+                                 "memory_pending": False})
         annotate(input=user_message, output=out.get("reply"),
-                 metadata={"session_id": session_id, "route": out.get("route"), "memory_ops": out.get("memory_ops")})
+                 metadata={"session_id": session_id, "route": out.get("route"),
+                           "memory": "queued in background" if out.get("memory_pending") else out.get("memory_ops")})
         return out

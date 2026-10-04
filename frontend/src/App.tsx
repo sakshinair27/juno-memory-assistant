@@ -31,7 +31,9 @@ export default function App() {
   const [sessionId, setSessionId] = useState<string>(() => load("sessionId", newSessionId()));
   // Restore the conversation after a refresh, minus any error bubbles (they're only meaningful once).
   const [messages, setMessages] = useState<Msg[]>(() =>
-    load<Msg[]>(`msgs:${load("sessionId", "")}`, []).filter((m) => !m.error));
+    load<Msg[]>(`msgs:${load("sessionId", "")}`, []).filter((m) => !m.error)
+      // a write still "pending" when the page closed can't be watched any more
+      .map((m) => (m.meta?.memory_pending ? { ...m, meta: { ...m.meta, memory_pending: false } } : m)));
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [memories, setMemories] = useState<Memory[]>([]);
@@ -78,16 +80,36 @@ export default function App() {
       const { reply, ...meta } = await api.chat(sessionId, content, history);
       setMessages((m) => [...m, { role: "assistant", content: reply, meta }]);
       if (voiceOut) speak(reply, voice.elevenlabs);
-      const changed = meta.memory_ops.filter((o) => o.op !== "NOOP" && o.memory_id).map((o) => o.memory_id!);
+      refresh();
+      if (meta.memory_pending && meta.turn_id) watchMemory(meta.turn_id);
+    } catch (e) {
+      setMessages((m) => [...m, { role: "assistant", content: `Something went wrong: ${(e as Error).message}`, error: true }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // The reply arrives before memory is written; poll until the background write
+  // lands, then attach its result to that reply and refresh the panel.
+  async function watchMemory(turnId: string) {
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 750));
+      let res;
+      try {
+        res = await api.turnMemory(turnId);
+      } catch {
+        continue;
+      }
+      if (res.status === "pending") continue;
+      setMessages((ms) => ms.map((m) => (m.meta?.turn_id === turnId
+        ? { ...m, meta: { ...m.meta, memory_pending: false, memory_ops: res.memory_ops } } : m)));
+      const changed = res.memory_ops.filter((o) => o.op !== "NOOP" && o.memory_id).map((o) => o.memory_id!);
       if (changed.length) {
         setFlash(new Set(changed));
         setTimeout(() => setFlash(new Set()), 2500);
       }
       refresh();
-    } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", content: `Something went wrong: ${(e as Error).message}`, error: true }]);
-    } finally {
-      setBusy(false);
+      return;
     }
   }
 
@@ -269,7 +291,7 @@ function TurnMeta({ meta }: { meta: Omit<ChatResponse, "reply"> }) {
   const [open, setOpen] = useState(false);
   const ops = meta.memory_ops.filter((o) => o.op !== "NOOP");
   const used = meta.used_memories;
-  if (!ops.length && !used.length && !meta.tool_calls.length) return null;
+  if (!ops.length && !used.length && !meta.tool_calls.length && !meta.memory_pending) return null;
   return (
     <div className="meta">
       {used.length > 0 && (
@@ -284,6 +306,7 @@ function TurnMeta({ meta }: { meta: Omit<ChatResponse, "reply"> }) {
           {o.op === "DELETE" && <>− forgot: {o.content}</>}
         </span>
       ))}
+      {meta.memory_pending && <span className="pill pending">saving to memory…</span>}
       {meta.tool_calls.map((t, i) => (
         <span key={`t${i}`} className={`pill tool ${t.is_error ? "err" : ""}`} title={t.output}>
           ⚙ {t.name.replace(/_/g, " ")}

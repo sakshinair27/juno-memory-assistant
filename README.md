@@ -80,7 +80,16 @@ Whole turn: **19.5 s, $0.022, 6,781 tokens.** Where it went:
 | respond | 7.74 s | $0.0164 (75%) | 2 Opus calls around the MCP `add_task` tool call |
 | remember | 9.07 s | $0.0047 (22%) | extracted "vegetarian" + "lives in Austin"; judge rewrote Seattle → Austin in place |
 
-**What the trace revealed:** `remember` takes 47% of the turn's wall-clock time but runs *after* the reply is already written, so the user waits on memory bookkeeping they don't need. The next optimisation is to return the reply first and run `remember` in the background; the trace shows that would cut perceived latency from ~19.5 s to ~10.5 s on this turn. Memory upkeep (route + extract + reconcile) is ~26% of cost; the main chat model is the rest.
+**What the trace revealed, and the fix.** `remember` took 47% of the turn's wall-clock time but ran *after* the reply was already written, so the user waited on memory bookkeeping they didn't need. The API now returns the reply first and runs extraction + conflict resolution on a single background worker (one worker keeps writes in message order, so a later message's conflict check always sees the earlier one's writes). The UI shows a "saving to memory…" chip that turns into the usual update chip when the write lands, and the background spans stay inside the same Langfuse trace.
+
+Measured on the same message with real model calls (2 runs each, blocking vs background):
+
+| | Time until the reply appears | Memory written correctly |
+|---|---|---|
+| Before (blocking) | 14.2 s | 2/2 runs |
+| **After (background)** | **8.0 s (44% faster)** | 2/2 runs (finished ~5.8 s after the reply) |
+
+Memory upkeep (route + extract + reconcile) is ~26% of cost; the main chat model is the rest.
 
 ## Quick start
 

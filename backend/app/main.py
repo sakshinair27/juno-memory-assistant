@@ -40,6 +40,7 @@ async def lifespan(_: FastAPI):
     log.info("ready (chat=%s memory=%s tracing=%s)", settings.chat_model, settings.memory_model,
              "on" if traced_ok else ("REJECTED - see warning above" if tracing.ENABLED else "off"))
     yield
+    state["agent"].shutdown()  # finish queued memory writes before closing the pool
     tracing.flush()
     pool.close()
 
@@ -74,7 +75,9 @@ def chat(req: ChatRequest):
     if not (os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN")):
         raise HTTPException(503, "ANTHROPIC_API_KEY is not set — add it to .env and restart the backend.")
     try:
-        out = state["agent"].run(req.session_id, req.message, [m.model_dump() for m in req.history])
+        # Reply first; extraction + conflict resolution run in the background (poll /api/turns/{turn_id}).
+        out = state["agent"].run(req.session_id, req.message, [m.model_dump() for m in req.history],
+                                 background_memory=True)
     except anthropic.APIStatusError as e:
         log.exception("model call failed")
         raise HTTPException(502, f"Model API error ({e.status_code}): {e.message}")
@@ -87,8 +90,19 @@ def chat(req: ChatRequest):
         "route": out.get("route"),
         "used_memories": out.get("pinned", []) + out.get("retrieved", []),
         "memory_ops": out.get("memory_ops", []),
+        "memory_pending": out.get("memory_pending", False),
+        "turn_id": out.get("turn_id"),
         "tool_calls": out.get("tool_calls", []),
     }
+
+
+@app.get("/api/turns/{turn_id}")
+def turn_memory(turn_id: str):
+    """Outcome of a turn's background memory write: pending | done | error."""
+    result = state["agent"].memory_result(turn_id)
+    if result is None:
+        raise HTTPException(404, "unknown turn")
+    return result
 
 
 @app.get("/api/memories")

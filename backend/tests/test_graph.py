@@ -72,3 +72,42 @@ def test_trivial_message_skips_router_retrieval_and_memory(store, embedder, monk
     out = G.MemoryAgent(store, embedder, None).run("s1", "thanks!", [])
     assert out["reply"] == "You're welcome!"
     assert out["retrieved"] == [] and out["memory_ops"] == []
+
+
+def test_background_memory_returns_reply_first_then_writes(store, embedder, monkeypatch):  # noqa: F811
+    import threading
+
+    store.add("User lives in Seattle", "location", embedder.embed_passage("User lives in Seattle"))
+    release = threading.Event()
+
+    def fake_structured(schema, system, user, **kw):
+        if schema is G.RouteDecision:
+            return G.RouteDecision(needs_memory=True, search_queries=["where the user lives"], may_contain_facts=True)
+        if schema is ExtractionResult:
+            release.wait(5)  # hold the memory write until the reply has been checked
+            return ExtractionResult(facts=[CandidateFact(content="User lives in Austin", category="location",
+                                                         durability=0.95, pinned=False, reason="moved")], forget_requests=[])
+        if schema is Decision:
+            return Decision(action="UPDATE", target_index=0, final_content="User lives in Austin",
+                            also_delete=[], reason="moved")
+        raise AssertionError(schema)
+
+    monkeypatch.setattr(G, "structured", fake_structured)
+    monkeypatch.setattr(X, "structured", fake_structured)
+    monkeypatch.setattr("app.memory.reconcile.structured", fake_structured)
+    monkeypatch.setattr(G.MemoryAgent, "_chat_call",
+                        lambda self, s, m, t: SimpleNamespace(stop_reason="end_turn", content=[_text("Welcome to Austin!")]))
+
+    agent = G.MemoryAgent(store, embedder, None)
+    out = agent.run("s1", "I moved to Austin.", [], background_memory=True)
+
+    # The reply is back while extraction is still blocked: memory hasn't changed yet.
+    assert out["reply"] == "Welcome to Austin!" and out["memory_pending"] is True
+    assert agent.memory_result(out["turn_id"])["status"] == "pending"
+    assert {m.content for m in store.list_all()} == {"User lives in Seattle"}
+
+    release.set()
+    agent.shutdown()  # waits for the queued write
+    result = agent.memory_result(out["turn_id"])
+    assert result["status"] == "done" and [o["op"] for o in result["memory_ops"]] == ["UPDATE"]
+    assert {m.content for m in store.list_all()} == {"User lives in Austin"}
