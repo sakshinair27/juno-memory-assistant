@@ -17,7 +17,10 @@ from . import config  # noqa: F401  - loads .env before we read LANGFUSE_* below
 F = TypeVar("F", bound=Callable[..., Any])
 log = logging.getLogger(__name__)
 
-ENABLED = bool(os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY"))
+# LANGFUSE_TRACING_ENABLED=false (the SDK's own switch) turns tracing off even with keys set;
+# the test suite uses it so test runs never land in a real project.
+ENABLED = (bool(os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY"))
+           and os.getenv("LANGFUSE_TRACING_ENABLED", "true").lower() != "false")
 
 if ENABLED:
     from langfuse import get_client, observe
