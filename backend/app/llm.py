@@ -27,7 +27,7 @@ def structured(schema: type[T], system: str, user: str, *, model: str | None = N
     """One cheap structured-output call (used by routing, extraction, conflict resolution)."""
     model = model or settings.memory_model
 
-    @traced(name, as_type="generation")
+    @traced(name, as_type="generation", capture_output=False)
     def _call() -> T:
         resp = client().messages.parse(
             model=model,

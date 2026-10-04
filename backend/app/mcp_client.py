@@ -15,7 +15,7 @@ from typing import Any, Callable, Coroutine, TypeVar
 from mcp import Client
 
 from .config import settings
-from .tracing import traced
+from .tracing import annotate, traced
 
 log = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -83,6 +83,7 @@ class TaskTools:
 
     @traced("mcp_call_tool", as_type="tool")
     def call(self, name: str, args: dict) -> tuple[str, bool]:
+        annotate(input={"tool": name, "arguments": args})
         try:
             return _run(lambda: _call(name, args))
         except Exception as e:

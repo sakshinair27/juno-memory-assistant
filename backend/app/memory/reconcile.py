@@ -98,8 +98,9 @@ class Reconciler:
     dup_sim: float = field(default_factory=lambda: settings.duplicate_sim)
     k: int = field(default_factory=lambda: settings.conflict_k)
 
-    @traced("reconcile_fact", as_type="guardrail")
+    @traced("reconcile_fact", as_type="guardrail", capture_output=False)
     def apply(self, candidate: CandidateFact, session_id: str | None = None, source: str = "") -> list[MemoryOp]:
+        annotate(input={"candidate": candidate.content, "user_message": source})
         emb = self.embedder.embed_passage(candidate.content)
         neighbours = self.store.search(emb, k=self.k, min_sim=self.min_sim)
 
@@ -118,7 +119,8 @@ class Reconciler:
 
         d = self.judge(candidate, neighbours, source)
         ops = self._execute(d, candidate, emb, neighbours, session_id)
-        annotate(input={"candidate": candidate.model_dump(), "neighbours": [n.content for n in neighbours]},
+        annotate(input={"candidate": candidate.content, "user_message": source,
+                        "similar_existing_facts": [f"{n.content} (sim {n.similarity:.2f})" for n in neighbours]},
                  output={"decision": d.model_dump(), "ops": [o.to_dict() for o in ops]})
         return ops
 
@@ -163,8 +165,9 @@ class Reconciler:
                 touched.add(i)
         return ops
 
-    @traced("forget", as_type="guardrail")
+    @traced("forget", as_type="guardrail", capture_output=False)
     def forget(self, request: str, session_id: str | None = None) -> list[MemoryOp]:
+        annotate(input=request)
         emb = self.embedder.embed_query(request)
         neighbours = self.store.search(emb, k=8, min_sim=0.5)
         if not neighbours:
@@ -177,6 +180,7 @@ class Reconciler:
             if 0 <= i < len(neighbours) and self.store.delete(neighbours[i].id, session_id=session_id, reason=f"user asked to forget: {request}"):
                 ops.append(MemoryOp("DELETE", neighbours[i].content, neighbours[i].id, old_content=neighbours[i].content,
                                     reason="user asked to forget"))
+        annotate(output=[o.to_dict() for o in ops])
         return ops
 
 

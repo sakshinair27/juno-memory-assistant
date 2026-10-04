@@ -71,6 +71,18 @@ Replies may be read aloud, so prefer plain conversational prose; use lists or ma
 Today's date is {today}."""
 
 
+def _readable(messages: list) -> list[dict]:
+    """Messages as plain JSON for the trace: SDK content blocks -> dicts, thinking blocks dropped."""
+    out = []
+    for m in messages:
+        c = m["content"]
+        if not isinstance(c, str):
+            c = [b if isinstance(b, dict) else b.model_dump() for b in c]
+            c = [b for b in c if b.get("type") not in ("thinking", "redacted_thinking")]
+        out.append({"role": m["role"], "content": c})
+    return out
+
+
 def _memory_block(pinned: list[dict], retrieved: list[dict]) -> str:
     if not pinned and not retrieved:
         return "<memory>\nNothing is stored about this user yet.\n</memory>"
@@ -94,7 +106,7 @@ class MemoryAgent:
         self.graph = self._build()
 
     # ---------------- nodes ----------------
-    @traced("route", as_type="chain")
+    @traced("route", as_type="chain", capture_output=False)
     def route(self, s: TurnState) -> dict:
         pinned = [{"id": d.id, "content": d.page_content, **d.metadata} for d in self.retriever.pinned_documents()]
         msg = s["user_message"]
@@ -105,10 +117,10 @@ class MemoryAgent:
             r = structured(RouteDecision, ROUTER_SYSTEM,
                            f"<recent_context>\n{ctx or '(none)'}\n</recent_context>\n<latest_user_message>\n{msg}\n</latest_user_message>",
                            max_tokens=512, name="llm_route")
-        annotate(output=r.model_dump())
+        annotate(input=msg, output=r.model_dump())
         return {"route": r.model_dump(), "pinned": pinned}
 
-    @traced("retrieve", as_type="retriever")
+    @traced("retrieve", as_type="retriever", capture_output=False)
     def retrieve(self, s: TurnState) -> dict:
         queries = [q for q in s["route"].get("search_queries", []) if q.strip()][:3] or [s["user_message"]]
         best: dict[str, dict] = {}
@@ -124,6 +136,7 @@ class MemoryAgent:
 
     @traced("respond", as_type="agent")
     def respond(self, s: TurnState) -> dict:
+        annotate(input=s["user_message"])
         system = RESPOND_SYSTEM.format(memory_block=_memory_block(s.get("pinned", []), s.get("retrieved", [])),
                                        today=date.today().isoformat())
         messages: list[dict[str, Any]] = [
@@ -152,7 +165,7 @@ class MemoryAgent:
         reply = "".join(b.text for b in resp.content if b.type == "text").strip()
         return {"reply": reply or "(no reply)", "tool_calls": tool_calls}
 
-    @traced("llm_chat", as_type="generation")
+    @traced("llm_chat", as_type="generation", capture_output=False)
     def _chat_call(self, system: str, messages: list, tools: list):
         kwargs: dict[str, Any] = dict(
             model=settings.chat_model,
@@ -167,11 +180,14 @@ class MemoryAgent:
         if tools:
             kwargs["tools"] = tools
         resp = client().beta.messages.create(**kwargs)
-        annotate_generation(settings.chat_model, resp.usage, output=[b.model_dump() for b in resp.content if b.type in ("text", "tool_use")])
+        annotate_generation(settings.chat_model, resp.usage, input=_readable(messages),
+                            output=[b.model_dump() for b in resp.content if b.type in ("text", "tool_use")],
+                            metadata={"stop_reason": resp.stop_reason, "tools": [t["name"] for t in tools]})
         return resp
 
     @traced("remember", as_type="chain")
     def remember(self, s: TurnState) -> dict:
+        annotate(input=s["user_message"])
         context = list(s.get("history", [])[-4:])
         candidates, ops = remember(s["user_message"], context, self.reconciler, s.get("session_id"))
         return {"candidates": [c.model_dump() for c in candidates], "memory_ops": [o.to_dict() for o in ops]}
@@ -192,7 +208,7 @@ class MemoryAgent:
         g.add_edge("remember", END)
         return g.compile()
 
-    @traced("chat_turn", as_type="agent")
+    @traced("chat_turn", as_type="agent", capture_output=False)
     def run(self, session_id: str, user_message: str, history: list[dict] | None = None) -> TurnState:
         out = self.graph.invoke({"session_id": session_id, "user_message": user_message, "history": history or [],
                                  "retrieved": [], "pinned": [], "tool_calls": [], "candidates": [], "memory_ops": []})

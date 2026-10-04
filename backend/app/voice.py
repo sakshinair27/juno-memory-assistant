@@ -15,7 +15,7 @@ from functools import lru_cache
 import httpx
 
 from .config import settings
-from .tracing import traced
+from .tracing import annotate, traced
 
 log = logging.getLogger(__name__)
 _lock = threading.Lock()
@@ -38,6 +38,7 @@ def _whisper():
 
 @traced("transcribe", as_type="span")
 def transcribe(audio: bytes) -> str:
+    annotate(input=f"{len(audio):,} bytes of audio")
     with _lock:
         segments, _info = _whisper().transcribe(io.BytesIO(audio), beam_size=1, vad_filter=True)
         return " ".join(s.text.strip() for s in segments).strip()
@@ -47,8 +48,9 @@ def tts_available() -> bool:
     return bool(settings.elevenlabs_api_key)
 
 
-@traced("tts", as_type="span")
+@traced("tts", as_type="span", capture_output=False)
 def synthesize(text: str) -> bytes:
+    annotate(input=text)
     r = httpx.post(
         f"https://api.elevenlabs.io/v1/text-to-speech/{settings.elevenlabs_voice_id}",
         headers={"xi-api-key": settings.elevenlabs_api_key, "accept": "audio/mpeg"},

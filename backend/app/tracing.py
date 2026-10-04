@@ -29,10 +29,13 @@ else:  # pragma: no cover - trivial
     get_client = None
 
 
-def traced(name: str, as_type: str | None = None) -> Callable[[F], F]:
+def traced(name: str, as_type: str | None = None, *, capture_output: bool = True) -> Callable[[F], F]:
+    """Raw arguments (graph state, `self`, audio bytes) make unreadable inputs, so
+    inputs are never auto-captured; each step sets a readable one with annotate()."""
     if not ENABLED:
         return lambda fn: fn
-    return observe(name=name, as_type=as_type)  # type: ignore[return-value]
+    return observe(name=name, as_type=as_type, capture_input=False,  # type: ignore[return-value]
+                   capture_output=capture_output)
 
 
 def annotate(**fields: Any) -> None:

@@ -60,13 +60,13 @@ def _render(user_message: str, context: list[dict]) -> str:
     return f"<recent_context>\n{ctx}\n</recent_context>\n\n<latest_user_message>\n{user_message}\n</latest_user_message>"
 
 
-@traced("extract_facts", as_type="chain")
+@traced("extract_facts", as_type="chain", capture_output=False)
 def extract_facts(user_message: str, context: list[dict] | None = None,
                   min_durability: float | None = None) -> tuple[list[CandidateFact], list[str]]:
     threshold = settings.extraction_min_durability if min_durability is None else min_durability
     result = structured(ExtractionResult, SYSTEM, _render(user_message, context or []), name="llm_extract")
     kept = [f for f in result.facts if f.durability >= threshold and f.content.strip()]
     dropped = [f for f in result.facts if f not in kept]
-    annotate(output={"kept": [f.model_dump() for f in kept], "dropped": [f.model_dump() for f in dropped],
+    annotate(input=user_message, output={"kept": [f.model_dump() for f in kept], "dropped": [f.model_dump() for f in dropped],
                      "forget": result.forget_requests})
     return kept, result.forget_requests
