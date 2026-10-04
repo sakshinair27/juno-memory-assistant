@@ -36,7 +36,9 @@ async def lifespan(_: FastAPI):
     tools = get_task_tools()
     log.info("MCP tools: %s", [t["name"] for t in tools.definitions()])
     state.update(pool=pool, store=store, agent=MemoryAgent(store, embedder, tools))
-    log.info("ready (chat=%s memory=%s tracing=%s)", settings.chat_model, settings.memory_model, tracing.ENABLED)
+    traced_ok = tracing.check_connection()
+    log.info("ready (chat=%s memory=%s tracing=%s)", settings.chat_model, settings.memory_model,
+             "on" if traced_ok else ("REJECTED - see warning above" if tracing.ENABLED else "off"))
     yield
     tracing.flush()
     pool.close()

@@ -55,6 +55,21 @@ def annotate_generation(model: str, usage: Any, **fields: Any) -> None:
         log.debug("langfuse generation annotate failed: %s", e)
 
 
+def check_connection() -> bool:
+    """Verify the keys against the configured host so a wrong region or key
+    shows up at startup instead of traces silently never arriving."""
+    if not ENABLED:
+        return False
+    try:
+        return bool(get_client().auth_check())
+    except Exception as e:
+        log.warning(
+            "Langfuse rejected the keys (%s). Traces will NOT be recorded. Check LANGFUSE_PUBLIC_KEY / "
+            "LANGFUSE_SECRET_KEY, and that LANGFUSE_HOST matches your project's region "
+            "(EU: https://cloud.langfuse.com, US: https://us.cloud.langfuse.com).", type(e).__name__)
+        return False
+
+
 def flush() -> None:
     if ENABLED:
         try:
