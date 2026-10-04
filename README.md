@@ -62,8 +62,25 @@ flowchart LR
 | Action tool | MCP server (`mcp_server/tasks_server.py`) — `add_task`, `list_tasks`, `complete_task`; discovered via `list_tools` and passed to Claude |
 | Voice | Whisper (local `faster-whisper`) for STT, ElevenLabs for TTS; both fall back to the browser's Web Speech API |
 | Frontend | React 19 + TypeScript + Vite; "What I remember about you" panel with live diff of memory changes |
-| Observability | Langfuse spans on route / retrieve / respond / extract / reconcile / each LLM call (no-op without keys) |
+| Observability | Langfuse: one trace per turn, spans for route / retrieve / respond / extract / reconcile, model + tokens + cost on every LLM call ([see below](#observability)) |
 | Evals | 32 conflict cases + 21 extraction cases, LLM-graded (`evals/`) |
+
+## Observability
+
+Every chat turn is one Langfuse trace, with each step nested underneath and every model call carrying its model, token counts and cost. This is a real trace of: *"I'm vegetarian. Actually I moved to Austin, so what should I eat tonight? Also remind me to book flights Friday."*
+
+<img src="docs/images/langfuse-trace-tree.png" alt="Langfuse trace tree of one Juno turn" width="460">
+
+Whole turn: **19.5 s, $0.022, 6,781 tokens.** Where it went:
+
+| Step | Time | Cost | What it did |
+|---|---|---|---|
+| route | 2.58 s | $0.0008 (4%) | decided to search memory and save facts; wrote 3 search queries |
+| retrieve | 0.11 s | — | pgvector search, found "lives in Seattle" |
+| respond | 7.74 s | $0.0164 (75%) | 2 Opus calls around the MCP `add_task` tool call |
+| remember | 9.07 s | $0.0047 (22%) | extracted "vegetarian" + "lives in Austin"; judge rewrote Seattle → Austin in place |
+
+**What the trace revealed:** `remember` takes 47% of the turn's wall-clock time but runs *after* the reply is already written, so the user waits on memory bookkeeping they don't need. The next optimisation is to return the reply first and run `remember` in the background; the trace shows that would cut perceived latency from ~19.5 s to ~10.5 s on this turn. Memory upkeep (route + extract + reconcile) is ~26% of cost; the main chat model is the rest.
 
 ## Quick start
 
@@ -99,7 +116,7 @@ The first backend start downloads the embedding model (~70 MB).
 |---|---|
 | Whisper speech-to-text | `pip install faster-whisper` (model `base.en` downloads on first use). Without it, the mic uses the browser's speech recognition. |
 | ElevenLabs voice | Set `ELEVENLABS_API_KEY` (and optionally `ELEVENLABS_VOICE_ID`). Without it, replies are spoken with the browser's voice. |
-| Langfuse tracing | Set `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`. |
+| Langfuse tracing | Set `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` (EU `https://cloud.langfuse.com` or US `https://us.cloud.langfuse.com`, matching your project). Startup logs `tracing=on` once the keys are verified. |
 | Standalone MCP server | `python -m mcp_server.tasks_server --http` then set `MCP_SERVER_URL=http://127.0.0.1:8765/mcp`. Or connect any MCP client over stdio: `python -m mcp_server.tasks_server`. By default the backend connects in-process (still over the MCP protocol). |
 
 ## Demo script (2 minutes)
