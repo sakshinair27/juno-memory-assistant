@@ -59,6 +59,7 @@ class ChatMessage(BaseModel):
     role: str
     content: str
     tool_calls: list[ToolCallRecord] = []  # tools actually called in that (assistant) turn
+    at: str | None = None  # date the message was sent (YYYY-MM-DD), for multi-day conversations
 
 
 class ChatRequest(BaseModel):

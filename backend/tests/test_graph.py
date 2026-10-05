@@ -129,3 +129,22 @@ def test_history_carries_tool_log_so_model_sees_past_tool_calls(store, embedder,
     assert past_reply.startswith("Done, I've added it.")
     assert "<tool_log>" in past_reply and "add_task" in past_reply and "Added task #4" in past_reply
     assert "<tool_log>" not in seen[0][0]["content"], "user turns are passed through unchanged"
+
+
+def test_user_messages_from_earlier_days_carry_their_date(store, embedder, monkeypatch):  # noqa: F811
+    from datetime import date
+
+    seen = []
+    monkeypatch.setattr(G, "structured", lambda *a, **k: G.RouteDecision(
+        needs_memory=False, search_queries=[], may_contain_facts=False))
+    monkeypatch.setattr(G.MemoryAgent, "_chat_call",
+                        lambda self, s, m, t: seen.append(m) or SimpleNamespace(stop_reason="end_turn", content=[_text("ok")]))
+    history = [{"role": "user", "content": "Remind me Friday.", "at": "2026-10-01"},
+               {"role": "assistant", "content": "Okay.", "at": "2026-10-01"},
+               {"role": "user", "content": "Thanks!", "at": date.today().isoformat()},
+               {"role": "assistant", "content": "Sure."}]
+    G.MemoryAgent(store, embedder, None).run("s1", "What's due?", history)
+    msgs = seen[0]
+    assert msgs[0]["content"] == "[sent 2026-10-01] Remind me Friday."
+    assert msgs[1]["content"] == "Okay.", "assistant text is never prefixed"
+    assert msgs[2]["content"] == "Thanks!", "today's messages need no date"

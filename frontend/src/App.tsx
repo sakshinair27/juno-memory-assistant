@@ -7,7 +7,12 @@ interface Msg {
   content: string;
   meta?: Omit<ChatResponse, "reply">;
   error?: boolean;
+  at?: string; // local date sent, YYYY-MM-DD
 }
+
+// Local calendar date; sent with history so "Friday" in an old message is read
+// relative to the day it was said, not today.
+const today = () => new Date().toLocaleDateString("en-CA");
 
 const newSessionId = () => `s-${Date.now().toString(36)}`;
 
@@ -74,16 +79,16 @@ export default function App() {
     stopSpeaking();
     // Send each past reply's real tool calls along with its text, so the model can tell
     // "I added the reminder" (and did) from a claim it can't back up.
-    const history = messages.filter((m) => !m.error).map(({ role, content, meta }) => ({
-      role, content,
+    const history = messages.filter((m) => !m.error).map(({ role, content, meta, at }) => ({
+      role, content, at,
       tool_calls: (meta?.tool_calls ?? []).map(({ name, input, output }) => ({ name, input, output })),
     }));
-    setMessages((m) => [...m, { role: "user", content }]);
+    setMessages((m) => [...m, { role: "user", content, at: today() }]);
     setInput("");
     setBusy(true);
     try {
       const { reply, ...meta } = await api.chat(sessionId, content, history);
-      setMessages((m) => [...m, { role: "assistant", content: reply, meta }]);
+      setMessages((m) => [...m, { role: "assistant", content: reply, meta, at: today() }]);
       if (voiceOut) speak(reply, voice.elevenlabs);
       refresh();
       if (meta.memory_pending && meta.turn_id) watchMemory(meta.turn_id);
