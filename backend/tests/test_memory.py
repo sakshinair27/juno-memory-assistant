@@ -129,6 +129,10 @@ def test_mcp_tasks_roundtrip(pool):
     assert not err and "call mom" in out
     out, err = t.call("list_tasks", {})
     assert "call mom" in out and "tomorrow 5pm" in out
+    out, err = t.call("add_task", {"title": "Call Mom", "due": "tomorrow 5pm"})
+    assert not err and "Already on the list" in out, "same open task must not be added twice"
+    out, _ = t.call("list_tasks", {})
+    assert out.lower().count("call mom") == 1
 
 
 def test_mcp_discovery_works_inside_running_event_loop(pool):

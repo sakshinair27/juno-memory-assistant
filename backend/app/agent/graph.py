@@ -18,6 +18,7 @@ remember - extraction + conflict resolution on the user's message. With
 from __future__ import annotations
 
 import contextvars
+import json
 import logging
 import re
 import threading
@@ -81,9 +82,20 @@ How to use memory:
 - Never claim to remember something that isn't listed here. If asked what you know about them, answer from the list.
 
 You have a task list tool (via MCP). When the user says "remind me to…" or asks to note/check/complete a to-do, use it, then confirm briefly.
+Earlier assistant turns may end with a <tool_log> block: the system's record of the tools that were actually called in that turn and what they returned. Trust it as ground truth. Never write a <tool_log> yourself. Only say a task was added if the tool confirmed it in this turn or a tool_log shows it; if you're unsure whether something is already on the list, call list_tasks instead of guessing.
 
 Replies may be read aloud, so prefer plain conversational prose; use lists or markdown only when they genuinely help.
 Today's date is {today}."""
+
+
+def _with_tool_log(m: dict) -> str:
+    """Past assistant text plus a record of the tools that turn really called. Without it the
+    model sees its own "I added the reminder" with no evidence and may wrongly 'correct' itself."""
+    calls = m.get("tool_calls") or []
+    if m.get("role") != "assistant" or not calls:
+        return m["content"]
+    lines = [f"- {c['name']}({json.dumps(c.get('input') or {}, ensure_ascii=False)}) -> {c.get('output', '')}" for c in calls]
+    return m["content"] + "\n\n<tool_log>\n" + "\n".join(lines) + "\n</tool_log>"
 
 
 def _readable(messages: list) -> list[dict]:
@@ -160,7 +172,7 @@ class MemoryAgent:
         system = RESPOND_SYSTEM.format(memory_block=_memory_block(s.get("pinned", []), s.get("retrieved", [])),
                                        today=date.today().isoformat())
         messages: list[dict[str, Any]] = [
-            {"role": m["role"], "content": m["content"]} for m in s.get("history", [])[-20:]
+            {"role": m["role"], "content": _with_tool_log(m)} for m in s.get("history", [])[-20:]
             if m.get("content") and m.get("role") in ("user", "assistant")
         ]
         messages.append({"role": "user", "content": s["user_message"]})

@@ -111,3 +111,21 @@ def test_background_memory_returns_reply_first_then_writes(store, embedder, monk
     result = agent.memory_result(out["turn_id"])
     assert result["status"] == "done" and [o["op"] for o in result["memory_ops"]] == ["UPDATE"]
     assert {m.content for m in store.list_all()} == {"User lives in Austin"}
+
+
+def test_history_carries_tool_log_so_model_sees_past_tool_calls(store, embedder, monkeypatch):  # noqa: F811
+    seen = []
+    monkeypatch.setattr(G, "structured", lambda *a, **k: G.RouteDecision(
+        needs_memory=False, search_queries=[], may_contain_facts=False))
+    monkeypatch.setattr(G.MemoryAgent, "_chat_call",
+                        lambda self, s, m, t: seen.append(m) or SimpleNamespace(stop_reason="end_turn", content=[_text("ok")]))
+    history = [
+        {"role": "user", "content": "Remind me to book flights Friday."},
+        {"role": "assistant", "content": "Done, I've added it.",
+         "tool_calls": [{"name": "add_task", "input": {"title": "Book flights", "due": "Friday"}, "output": "Added task #4"}]},
+    ]
+    G.MemoryAgent(store, embedder, None).run("s1", "Is my flight reminder saved?", history)
+    past_reply = seen[0][1]["content"]
+    assert past_reply.startswith("Done, I've added it.")
+    assert "<tool_log>" in past_reply and "add_task" in past_reply and "Added task #4" in past_reply
+    assert "<tool_log>" not in seen[0][0]["content"], "user turns are passed through unchanged"

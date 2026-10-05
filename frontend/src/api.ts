@@ -77,7 +77,8 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  chat: (session_id: string, message: string, history: { role: Role; content: string }[]) =>
+  chat: (session_id: string, message: string,
+         history: { role: Role; content: string; tool_calls?: Pick<ToolCall, "name" | "input" | "output">[] }[]) =>
     fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -49,9 +49,16 @@ app = FastAPI(title="Juno", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"], allow_headers=["*"])
 
 
+class ToolCallRecord(BaseModel):
+    name: str
+    input: dict = {}
+    output: str = ""
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
+    tool_calls: list[ToolCallRecord] = []  # tools actually called in that (assistant) turn
 
 
 class ChatRequest(BaseModel):

@@ -72,7 +72,12 @@ export default function App() {
     const content = text.trim();
     if (!content || busy) return;
     stopSpeaking();
-    const history = messages.filter((m) => !m.error).map(({ role, content }) => ({ role, content }));
+    // Send each past reply's real tool calls along with its text, so the model can tell
+    // "I added the reminder" (and did) from a claim it can't back up.
+    const history = messages.filter((m) => !m.error).map(({ role, content, meta }) => ({
+      role, content,
+      tool_calls: (meta?.tool_calls ?? []).map(({ name, input, output }) => ({ name, input, output })),
+    }));
     setMessages((m) => [...m, { role: "user", content }]);
     setInput("");
     setBusy(true);

@@ -43,6 +43,11 @@ def _fmt(t: dict) -> str:
 def add_task(title: str, due: str | None = None) -> str:
     """Add a task or reminder. `title` is what to do; `due` is a free-text time like 'tomorrow 9am' or '2026-10-05'."""
     with _conn() as c:
+        dup = c.execute(
+            "SELECT * FROM tasks WHERE NOT done AND lower(title) = lower(%s) AND due IS NOT DISTINCT FROM %s",
+            (title.strip(), due)).fetchone()
+        if dup:  # idempotent: asking twice for the same reminder doesn't create two
+            return f"Already on the list, not added again: {_fmt(dup)}"
         t = c.execute("INSERT INTO tasks (title, due) VALUES (%s, %s) RETURNING *", (title.strip(), due)).fetchone()
     return f"Added task {_fmt(t)}"
 
