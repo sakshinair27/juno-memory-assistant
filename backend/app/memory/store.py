@@ -140,6 +140,24 @@ class MemoryStore:
                 (UUID(memory_id), old["content"], reason, session_id))
         return True
 
+    # ---------- quarantine (memory-poisoning review queue) ----------
+    def quarantine(self, content: str, category: str, reason: str, *, source_message: str | None = None,
+                   session_id: str | None = None) -> int:
+        with self.pool.connection() as conn:
+            return conn.execute(
+                "INSERT INTO quarantined_facts (content, category, reason, source_message, session_id) "
+                "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                (content, category, reason, source_message, session_id)).fetchone()[0]
+
+    def quarantined(self, limit: int = 50) -> list[dict]:
+        with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT id, content, category, reason, source_message, created_at "
+                        "FROM quarantined_facts ORDER BY id DESC LIMIT %s", (limit,))
+            rows = cur.fetchall()
+        for r in rows:
+            r["created_at"] = r["created_at"].isoformat()
+        return rows
+
     def clear(self) -> None:
         with self.pool.connection() as conn:
-            conn.execute("TRUNCATE memories, memory_events")
+            conn.execute("TRUNCATE memories, memory_events, quarantined_facts")

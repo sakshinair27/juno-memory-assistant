@@ -45,6 +45,17 @@ def _schema_ddl(dim: int) -> list[str]:
         """,
         "CREATE INDEX IF NOT EXISTS memory_events_memory_id ON memory_events (memory_id)",
         """
+        CREATE TABLE IF NOT EXISTS quarantined_facts (
+            id             BIGSERIAL PRIMARY KEY,
+            content        TEXT NOT NULL,
+            category       TEXT NOT NULL,
+            reason         TEXT,
+            source_message TEXT,
+            session_id     TEXT,
+            created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+        """
         CREATE TABLE IF NOT EXISTS tasks (
             id           BIGSERIAL PRIMARY KEY,
             title        TEXT NOT NULL,
@@ -65,7 +76,8 @@ def init_db(database_url: str, schema: str, dim: int) -> None:
     """Create the extension, the schema and the tables if they don't exist."""
     if not _SCHEMA_RE.match(schema):
         raise ValueError(f"invalid schema name: {schema!r}")
-    with Connection.connect(database_url, autocommit=True) as conn:
+    # Fail fast (e.g. Docker not running) instead of hanging on connect.
+    with Connection.connect(database_url, autocommit=True, connect_timeout=5) as conn:
         conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
         conn.execute(sql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(sql.Identifier(schema)))
         conn.execute(sql.SQL("SET search_path TO {}, public").format(sql.Identifier(schema)))
@@ -81,7 +93,7 @@ def make_pool(database_url: str | None = None, schema: str | None = None, dim: i
         database_url,
         min_size=1,
         max_size=10,
-        kwargs={"options": f"-c search_path={schema},public", "autocommit": True},
+        kwargs={"options": f"-c search_path={schema},public", "autocommit": True, "connect_timeout": 5},
         configure=_configure,
         open=True,
     )

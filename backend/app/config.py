@@ -47,6 +47,10 @@ class Settings:
     # Extraction: candidates below this durability score are dropped as noise.
     extraction_min_durability: float = _f("EXTRACTION_MIN_DURABILITY", 0.6)
 
+    # Memory-poisoning screen: an LLM judge quarantines candidate facts that are
+    # really instructions (overrides, promotions, exfiltration, third-party directives).
+    memory_screen: bool = os.getenv("MEMORY_SCREEN", "true").lower() != "false"
+
     # Conflict resolution: existing facts above conflict_min_sim are sent to the
     # judge; above duplicate_sim we short-circuit to NOOP without an LLM call.
     conflict_min_sim: float = _f("CONFLICT_MIN_SIM", 0.55)

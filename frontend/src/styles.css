@@ -108,7 +108,7 @@ h1 { font-size: 17px; margin: 0; letter-spacing: -0.01em; white-space: nowrap; o
 .pill.used { border-color: var(--border); background: transparent; }
 .pill.add { background: var(--add-soft); color: var(--add); }
 .pill.update { background: var(--upd-soft); color: var(--upd); }
-.pill.delete { background: var(--del-soft); color: var(--del); }
+.pill.delete, .pill.quarantine { background: var(--del-soft); color: var(--del); }
 .pill.tool { background: var(--accent-soft); color: var(--accent); }
 .pill.pending { border-color: var(--border); background: transparent; animation: fade 1.2s ease-in-out infinite alternate; }
 @keyframes fade { from { opacity: 0.45; } to { opacity: 1; } }

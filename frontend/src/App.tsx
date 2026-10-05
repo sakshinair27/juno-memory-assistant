@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type ChatResponse, type Memory, type MemoryEvent, type Role, type Task } from "./api";
+import { api, type ChatResponse, type Memory, type MemoryEvent, type Quarantined, type Role, type Task } from "./api";
 import { speak, startRecording, stopSpeaking, sttSupported, type Recording } from "./voice";
 
 interface Msg {
@@ -43,6 +43,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [events, setEvents] = useState<MemoryEvent[]>([]);
+  const [blocked, setBlocked] = useState<Quarantined[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [voiceOut, setVoiceOut] = useState<boolean>(() => load("voiceOut", false));
   const [voice, setVoice] = useState({ whisper: false, elevenlabs: false });
@@ -53,7 +54,8 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [m, e, t] = await Promise.all([api.memories(), api.events(), api.tasks()]);
+      const [m, e, t, q] = await Promise.all([api.memories(), api.events(), api.tasks(), api.quarantine()]);
+      setBlocked(q);
       setMemories(m);
       setEvents(e);
       setTasks(t);
@@ -272,6 +274,20 @@ export default function App() {
           </div>
         )}
 
+        {blocked.length > 0 && (
+          <div className="group">
+            <h3>Blocked from memory</h3>
+            <ul className="events">
+              {blocked.slice(0, 8).map((b) => (
+                <li key={b.id} className="ev delete" title={b.reason ?? ""}>
+                  <span className="op">⛔</span>
+                  <span>{b.content} <em className="muted">({b.category.replace(/_/g, " ")})</em></span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="group">
           <h3>Tasks <span className="tag">MCP</span></h3>
           {tasks.length === 0 && <p className="muted">Say “remind me to…” to add one.</p>}
@@ -314,6 +330,7 @@ function TurnMeta({ meta }: { meta: Omit<ChatResponse, "reply"> }) {
           {o.op === "ADD" && <>+ remembered: {o.content}</>}
           {o.op === "UPDATE" && <>↻ updated: <s>{o.old_content}</s> → {o.content}</>}
           {o.op === "DELETE" && <>− forgot: {o.content}</>}
+          {o.op === "QUARANTINE" && <>⛔ blocked from memory: {o.content}</>}
         </span>
       ))}
       {meta.memory_pending && <span className="pill pending">saving to memory…</span>}

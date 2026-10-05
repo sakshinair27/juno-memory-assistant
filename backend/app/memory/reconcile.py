@@ -63,7 +63,7 @@ FORGET_SYSTEM = """The user asked the assistant to forget something. Given the r
 
 @dataclass
 class MemoryOp:
-    op: Literal["ADD", "UPDATE", "DELETE", "NOOP"]
+    op: Literal["ADD", "UPDATE", "DELETE", "NOOP", "QUARANTINE"]
     content: str
     memory_id: str | None = None
     old_content: str | None = None
@@ -184,15 +184,26 @@ class Reconciler:
         return ops
 
 
-def remember(user_message: str, context: list[dict], reconciler: Reconciler, session_id: str | None = None) -> tuple[list[CandidateFact], list[MemoryOp]]:
-    """Extraction + reconciliation for one user message. Candidates are applied
-    sequentially so a later candidate sees the writes of an earlier one."""
+def remember(user_message: str, context: list[dict], reconciler: Reconciler, session_id: str | None = None,
+             screen: bool | None = None) -> tuple[list[CandidateFact], list[MemoryOp]]:
+    """Extraction -> poisoning screen -> reconciliation for one user message.
+    Candidates are applied sequentially so a later candidate sees the writes of
+    an earlier one; quarantined candidates never reach the fact store."""
     from .extraction import extract_facts
+    from .screen import screen_fact
 
+    use_screen = settings.memory_screen if screen is None else screen
     candidates, forgets = extract_facts(user_message, context)
     ops: list[MemoryOp] = []
     for req in forgets:
         ops += reconciler.forget(req, session_id)
     for c in candidates:
+        if use_screen:
+            d = screen_fact(c, user_message)
+            if d.decision == "QUARANTINE":
+                reconciler.store.quarantine(c.content, d.category, d.reason,
+                                            source_message=user_message, session_id=session_id)
+                ops.append(MemoryOp("QUARANTINE", c.content, reason=f"{d.category}: {d.reason}", path="screen"))
+                continue
         ops += reconciler.apply(c, session_id, source=user_message)
     return candidates, ops

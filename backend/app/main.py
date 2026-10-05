@@ -123,6 +123,12 @@ def memory_events(limit: int = 50):
     return state["store"].events(limit)
 
 
+@app.get("/api/memories/quarantine")
+def quarantine(limit: int = 30):
+    """Candidate facts the poisoning screen kept out of memory, with the judge's reason."""
+    return state["store"].quarantined(limit)
+
+
 @app.delete("/api/memories/{memory_id}")
 def delete_memory(memory_id: str):
     if not state["store"].delete(memory_id, reason="deleted from UI"):

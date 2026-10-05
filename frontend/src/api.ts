@@ -21,8 +21,16 @@ export interface MemoryEvent {
   created_at: string;
 }
 
+export interface Quarantined {
+  id: number;
+  content: string;
+  category: string;
+  reason: string | null;
+  created_at: string;
+}
+
 export interface MemoryOp {
-  op: "ADD" | "UPDATE" | "DELETE" | "NOOP";
+  op: "ADD" | "UPDATE" | "DELETE" | "NOOP" | "QUARANTINE";
   content: string;
   memory_id: string | null;
   old_content: string | null;
@@ -86,6 +94,7 @@ export const api = {
     }).then((r) => json<ChatResponse>(r)),
   memories: () => fetch("/api/memories").then((r) => json<Memory[]>(r)),
   events: () => fetch("/api/memories/events?limit=30").then((r) => json<MemoryEvent[]>(r)),
+  quarantine: () => fetch("/api/memories/quarantine?limit=20").then((r) => json<Quarantined[]>(r)),
   deleteMemory: (id: string) => fetch(`/api/memories/${id}`, { method: "DELETE" }).then((r) => json(r)),
   clearMemories: () => fetch("/api/memories", { method: "DELETE" }).then((r) => json(r)),
   tasks: () => fetch("/api/tasks").then((r) => json<Task[]>(r)),
