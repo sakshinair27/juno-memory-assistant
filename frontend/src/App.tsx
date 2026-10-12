@@ -196,13 +196,6 @@ export default function App() {
           {messages.length === 0 && (
             <div className="empty">
               <h2>Tell me about yourself — I'll remember.</h2>
-              <p>Try: “I live in Seattle and I prefer short answers.” Then start a new session and ask for a weekend plan.</p>
-              <div className="suggestions">
-                {["I'm a vegetarian and I'm training for a marathon.", "Actually, I just moved to Austin.",
-                  "What do you know about me?", "Remind me to book flights on Friday."].map((s) => (
-                  <button key={s} onClick={() => send(s)}>{s}</button>
-                ))}
-              </div>
             </div>
           )}
           {messages.map((m, i) => (
