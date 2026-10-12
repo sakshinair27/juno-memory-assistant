@@ -12,5 +12,5 @@ def screen_stores_everything(monkeypatch):
     approves every candidate. Tests of the screen itself override this."""
     from app.memory import screen
 
-    monkeypatch.setattr(screen, "screen_fact", lambda candidate, source: screen.ScreenDecision(
-        decision="STORE", category="none", reason="test default"))
+    monkeypatch.setattr(screen, "screen_facts", lambda candidates, source: [screen.ScreenDecision(
+        decision="STORE", category="none", reason="test default") for _ in candidates])

@@ -44,7 +44,7 @@ from app.llm import client  # noqa: E402
 from app.memory.extraction import extract_facts  # noqa: E402
 from app.memory.reconcile import Decision, Reconciler, remember  # noqa: E402
 from app.memory.extraction import CandidateFact  # noqa: E402
-from app.memory.screen import screen_fact  # noqa: E402
+from app.memory.screen import screen_fact, screen_facts  # noqa: E402
 from app.memory.store import MemoryStore  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
@@ -179,7 +179,7 @@ def run_injection(cases: list[dict]) -> list[dict]:
     for case in cases:
         try:
             facts, _ = extract_facts(case["message"], [])
-            decisions = [screen_fact(f, case["message"]) for f in facts]
+            decisions = screen_facts(facts, case["message"])  # same batched call the app makes
             screened = [f.content for f, d in zip(facts, decisions) if d.decision == "STORE"]
             quarantined = [{"fact": f.content, "category": d.category, "reason": d.reason}
                            for f, d in zip(facts, decisions) if d.decision == "QUARANTINE"]
@@ -309,14 +309,39 @@ def main() -> None:
                 r = {"id": c["id"], "label": label, "passed": False, "error": repr(e)}
             print(f"  [{'OK  ' if r['passed'] else 'MISS'}] {label:<8} {c['id']:<22} -> {r.get('decision')} {r.get('category', '')}", flush=True)
             res.append(r)
+        # Mixed batches: poisoned and benign candidates screened together in groups of 4 (fixed
+        # shuffle), the way several facts from one message are screened in a single call.
+        import random
+        mixed = rows[:]; random.Random(7).shuffle(mixed)
+        batch_res = []
+        for k in range(0, len(mixed), 4):
+            group = mixed[k:k + 4]
+            cands = [CandidateFact(content=c["candidate"], category="preference", durability=0.9, pinned=False, reason="eval")
+                     for _, c in group]
+            source = " ".join(c["source"] for _, c in group)
+            try:
+                ds = screen_facts(cands, source)
+            except Exception as e:
+                ds = [None] * len(group); print("  batch error", e)
+            for (label, c), d in zip(group, ds):
+                batch_res.append({"id": c["id"], "label": label, "decision": d.decision if d else None})
+        bp = [r for r in batch_res if r["label"] == "poisoned"]; bb = [r for r in batch_res if r["label"] == "benign"]
+        btp = sum(r["decision"] == "QUARANTINE" for r in bp); bfp = sum(r["decision"] == "QUARANTINE" for r in bb)
+        print(f"  mixed batches of 4: quarantined {btp}/{len(bp)} poisoned, {bfp}/{len(bb)} benign")
+        for r in batch_res:
+            if (r["label"] == "poisoned") != (r["decision"] == "QUARANTINE"):
+                print(f"    batch miss: {r['label']} {r['id']} -> {r['decision']}")
         pois = [r for r in res if r["label"] == "poisoned"]; ben = [r for r in res if r["label"] == "benign"]
         tp = sum(r.get("decision") == "QUARANTINE" for r in pois); fp = sum(r.get("decision") == "QUARANTINE" for r in ben)
         summary = {"recall_poisoned_quarantined": frac(tp, len(pois)), "false_positive_rate": frac(fp, len(ben)),
-                   "precision": frac(tp, tp + fp)}
+                   "precision": frac(tp, tp + fp),
+                   "mixed_batch_recall": frac(btp, len(bp)), "mixed_batch_false_positive_rate": frac(bfp, len(bb))}
         report["screen"] = {"results": res, "summary": summary}
         lines += ["## Poisoning screen (component test)", "",
                   f"**Quarantined {summary['recall_poisoned_quarantined']} of poisoned candidates; "
                   f"false-positive rate {summary['false_positive_rate']} on benign lookalikes; precision {summary['precision']}**", "",
+                  f"- Mixed batches of 4 (poisoned + benign screened together): quarantined {summary['mixed_batch_recall']} poisoned, "
+                  f"false positives {summary['mixed_batch_false_positive_rate']}", "",
                   "| candidate | label | decision | category | reason |", "|---|---|---|---|---|"]
         lines += [f"| {r['id']} | {r['label']} | {r.get('decision', 'error')} | {r.get('category', '')} | {r.get('reason', r.get('error', ''))} |" for r in res]
         lines.append("")

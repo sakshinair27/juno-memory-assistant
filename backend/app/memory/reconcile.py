@@ -190,16 +190,16 @@ def remember(user_message: str, context: list[dict], reconciler: Reconciler, ses
     Candidates are applied sequentially so a later candidate sees the writes of
     an earlier one; quarantined candidates never reach the fact store."""
     from .extraction import extract_facts
-    from .screen import screen_fact
+    from .screen import screen_facts
 
     use_screen = settings.memory_screen if screen is None else screen
     candidates, forgets = extract_facts(user_message, context)
     ops: list[MemoryOp] = []
     for req in forgets:
         ops += reconciler.forget(req, session_id)
-    for c in candidates:
-        if use_screen:
-            d = screen_fact(c, user_message)
+    decisions = screen_facts(candidates, user_message) if use_screen else [None] * len(candidates)
+    for c, d in zip(candidates, decisions):
+        if d is not None:
             if d.decision == "QUARANTINE":
                 reconciler.store.quarantine(c.content, d.category, d.reason,
                                             source_message=user_message, session_id=session_id)
