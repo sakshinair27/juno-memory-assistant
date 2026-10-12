@@ -34,6 +34,8 @@ function save(key: string, value: unknown) {
 
 export default function App() {
   const [sessionId, setSessionId] = useState<string>(() => load("sessionId", newSessionId()));
+  // Friendly number for the header; the random id is still what the backend and traces use.
+  const [sessionNo, setSessionNo] = useState<number>(() => load("sessionNo", 1));
   // Restore the conversation after a refresh, minus any error bubbles (they're only meaningful once).
   const [messages, setMessages] = useState<Msg[]>(() =>
     load<Msg[]>(`msgs:${load("sessionId", "")}`, []).filter((m) => !m.error)
@@ -71,6 +73,7 @@ export default function App() {
   // Effects use block bodies: some browsers return a Promise from scrollIntoView,
   // and React treats any non-function return value as a (broken) cleanup.
   useEffect(() => { save("sessionId", sessionId); }, [sessionId]);
+  useEffect(() => { save("sessionNo", sessionNo); }, [sessionNo]);
   useEffect(() => { save(`msgs:${sessionId}`, messages.filter((m) => !m.error)); }, [messages, sessionId]);
   useEffect(() => { save("voiceOut", voiceOut); }, [voiceOut]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, busy]);
@@ -148,6 +151,7 @@ export default function App() {
     stopSpeaking();
     const id = newSessionId();
     setSessionId(id);
+    setSessionNo((n) => n + 1);
     setMessages([]);
   }
 
@@ -159,6 +163,10 @@ export default function App() {
   async function forgetAll() {
     if (!confirm("Erase everything the assistant remembers about you?")) return;
     await api.clearMemories();
+    stopSpeaking();
+    setSessionId(newSessionId());
+    setSessionNo(1); // fresh start: memory wiped, numbering restarts
+    setMessages([]);
     refresh();
   }
 
@@ -175,7 +183,7 @@ export default function App() {
             <span className="logo" aria-hidden>◎</span>
             <div>
               <h1>Juno</h1>
-              <p className="sub">Session {sessionId.slice(2)} · remembers across sessions</p>
+              <p className="sub">Session {sessionNo} · remembers across sessions</p>
             </div>
           </div>
           <div className="actions">
