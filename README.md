@@ -247,3 +247,6 @@ docker-compose.yml        Postgres 17 + pgvector
 ## Configuration
 
 All settings live in [`backend/app/config.py`](backend/app/config.py) and can be overridden in `.env` — models, effort, retrieval `k` / floor / margin, the extraction durability threshold, and the conflict / duplicate similarity bands. See [`.env.example`](.env.example).
+
+## Demo
+https://github.com/user-attachments/assets/4a6472df-f1c7-40c0-b2f8-9c196baf4fc6
