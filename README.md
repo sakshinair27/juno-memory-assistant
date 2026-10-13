@@ -4,6 +4,9 @@
 
 > **Headline metric — conflict-resolution accuracy: 90% (9/10) on held-out contradiction cases, vs 0% (0/10) for a naive append-only memory on the same cases.** The held-out cases were written after all tuning and run once, untouched. When it resolves a contradiction, it rewrites the old fact in place instead of storing both. [Details and the one failure ↓](#results)
 
+## Demo
+https://github.com/user-attachments/assets/4a6472df-f1c7-40c0-b2f8-9c196baf4fc6
+
 ## Why it's not just "RAG over chat logs"
 
 Storing whole transcripts and retrieving them later gets noisy and stale fast. This system stores **atomic facts**, and treats every write as a correctness problem:
@@ -158,7 +161,7 @@ The first backend start downloads the embedding model (~70 MB).
 
 ## Demo script (2 minutes)
 
-1. "Hi! I'm Sam, I live in Seattle, and I like short answers." → panel shows 3 facts; the style preference lands under **Always applied**.
+1. "Hi! I'm Sakshi, I live in Seattle, and I like short answers." → panel shows 3 facts; the style preference lands under **Always applied**.
 2. "I'm vegetarian and training for the Chicago marathon in October."
 3. Click **New session**. Ask "What should I make for dinner tonight?" → the reply is short and vegetarian; the `used N memories` chip shows exactly which facts were pulled in.
 4. "Actually, I just moved to Austin." → the chip shows `↻ updated: lives in Seattle → lives in Austin`; the panel's change log shows the strikethrough.
@@ -247,6 +250,3 @@ docker-compose.yml        Postgres 17 + pgvector
 ## Configuration
 
 All settings live in [`backend/app/config.py`](backend/app/config.py) and can be overridden in `.env` — models, effort, retrieval `k` / floor / margin, the extraction durability threshold, and the conflict / duplicate similarity bands. See [`.env.example`](.env.example).
-
-## Demo
-https://github.com/user-attachments/assets/4a6472df-f1c7-40c0-b2f8-9c196baf4fc6
