@@ -1,5 +1,7 @@
 # Juno
 
+[![M8ven Score](https://m8ven.ai/badge/mcp/sakshinair27-juno-memory-assistant-wdv9ga?v=44d4be2ad6cec53e15168716a87742b5)](https://m8ven.ai/mcp/sakshinair27-juno-memory-assistant-wdv9ga?s=readme)
+
 **Juno** is a voice-and-chat personal assistant that remembers you across sessions — preferences, ongoing projects, facts you've mentioned — and uses them to personalize answers. The memory system is built from scratch: **extraction → pgvector storage → conflict resolution → relevance-filtered retrieval**, orchestrated by a LangGraph agent, with one MCP tool for "remind me to…".
 
 > **Headline metric — conflict-resolution accuracy: 90% (9/10) on held-out contradiction cases, vs 0% (0/10) for a naive append-only memory on the same cases.** The held-out cases were written after all tuning and run once, untouched. When it resolves a contradiction, it rewrites the old fact in place instead of storing both. [Details and the one failure ↓](#results)
